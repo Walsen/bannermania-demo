@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BannerMania — Retro Banner Generator</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="crt">
+    <h1>◆ BANNER<span>MANIA</span> ◆</h1>
+    <p class="tagline">Make a banner like it's 1989.</p>
+  </header>
+
+  <main>
+    <form id="controls" onsubmit="return false;">
+      <label class="full">
+        Text
+        <input type="text" id="text" value="BANNER MANIA" maxlength="60" autocomplete="off">
+      </label>
+
+      <label>
+        Font
+        <select id="font">
+          {% for f in fonts %}
+          <option value="{{ f }}" {% if f == default_font %}selected{% endif %}>{{ f }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>
+        Effect
+        <select id="effect">
+          {% for e in effects %}
+          <option value="{{ e }}" {% if e == 'shadow' %}selected{% endif %}>{{ e }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>
+        Background
+        <select id="pattern">
+          {% for p in patterns %}
+          <option value="{{ p }}">{{ p }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>
+        Border (mark)
+        <select id="border">
+          {% for b in borders %}
+          <option value="{{ b }}" {% if b == 'single' %}selected{% endif %}>{{ b }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>
+        Size
+        <select id="size">
+          <option value="1000x300" selected>Web banner (1000×300)</option>
+          <option value="1200x628">Social (1200×628)</option>
+          <option value="1500x500">Wide header (1500×500)</option>
+          <option value="800x800">Square (800×800)</option>
+        </select>
+      </label>
+
+      <label class="switch full">
+        <input type="checkbox" id="animate">
+        <span>🎞️ Animate — scrolling marquee (GIF)</span>
+      </label>
+
+      <label id="motionRow" hidden>
+        Motion
+        <select id="motion">
+          {% for m in motions %}
+          <option value="{{ m }}">{{ m }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label id="speedRow" hidden>
+        Scroll speed <span id="speedVal" class="speedval">fast</span>
+        <input type="range" id="speed" min="20" max="200" value="60" step="10">
+      </label>
+
+      <label id="cycleRow" class="switch full" hidden>
+        <input type="checkbox" id="cycle">
+        <span>🌈 Color cycle — rotate the text hue over the loop</span>
+      </label>
+
+      <label class="color">Text <input type="color" id="fg" value="#ffd60a"></label>
+      <label class="color">Text 2 <input type="color" id="fg2" value="#ff4747"></label>
+      <label class="color">Background <input type="color" id="bg" value="#111122"></label>
+      <label class="color">Accent <input type="color" id="accent" value="#28284a"></label>
+
+      <div class="buttons full">
+        <button type="button" id="randomize">🎲 Surprise me</button>
+        <a id="download" class="btn-download" href="#" download="banner.png">⬇ Download</a>
+      </div>
+    </form>
+
+    <section class="preview">
+      <img id="banner" src="" alt="banner preview">
+    </section>
+  </main>
+
+  <footer>
+    <span id="status">ready.</span>
+    <span class="hint">Text 2 → gradient · Accent → patterns · Marquee renders a looping GIF.</span>
+  </footer>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

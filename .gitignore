@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Generated banners
+*.png
+*.gif
+!docs/**/*.png
+!docs/**/*.gif
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
