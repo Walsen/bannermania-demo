@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Doc Sync on File Create",
+      "trigger": "PostFileCreate",
+      "matcher": "^(?!.*(\\.kiro/|\\.git/|\\.venv/|\\.devbox/|node_modules/|__pycache__/)).*\\.(py|js|ts|jsx|tsx|html|css|json|toml|yaml|yml|md)$",
+      "action": {
+        "type": "agent",
+        "prompt": "A new project file was just created. Use the doc-sync skill: check whether this new file adds a user-visible feature, route, config, or dependency that should be reflected in README.md, docs/, or inline docstrings, and update the appropriate documentation surgically if so. Skip if the file has no documentation-relevant, user-visible effect."
+      }
+    }
+  ]
+}

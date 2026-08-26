@@ -20,8 +20,8 @@ import io
 import math
 import os
 
-from flask import Flask, render_template, request, send_file, jsonify
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from flask import Flask, jsonify, render_template, request, send_file
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 app = Flask(__name__)
 
@@ -421,10 +421,10 @@ def draw_glyph_tile(ch, font, effect, color, outline):
     at (target_x - pen_x, target_y - pen_y)."""
     fsize = font_size_of(font)
     pad = max(6, fsize)  # generous — covers shadow/3d/glitch offset and glow blur
-    l, t, r, b = font.getbbox(ch)
-    tile = Image.new("RGBA", ((r - l) + 2 * pad, (b - t) + 2 * pad), (0, 0, 0, 0))
+    left, t, r, b = font.getbbox(ch)
+    tile = Image.new("RGBA", ((r - left) + 2 * pad, (b - t) + 2 * pad), (0, 0, 0, 0))
     # Draw so the glyph's pen origin sits at (pad, pad) inside the tile.
-    ox, oy = pad - l, pad - t
+    ox, oy = pad - left, pad - t
     struct = "plain" if effect in _COLOR_ONLY else effect
     draw_text_effect(tile, ch, font, (ox, oy), struct, color, color, outline)
     return tile, pad, pad
@@ -561,19 +561,19 @@ def render_scroll_gif(text, font_name, effect, pattern, border, fg, fg2, bg, acc
 
 # --- Routes -----------------------------------------------------------------
 def _common_args():
-    return dict(
-        text=request.args.get("text", "BANNER MANIA"),
-        font_name=request.args.get("font", DEFAULT_FONT or "Default"),
-        effect=request.args.get("effect", "shadow"),
-        pattern=request.args.get("pattern", "solid"),
-        border=request.args.get("border", "single"),
-        fg=request.args.get("fg", "#ffd60a"),
-        fg2=request.args.get("fg2", "#ff4747"),
-        bg=request.args.get("bg", "#111122"),
-        accent=request.args.get("accent", "#28284a"),
-        width=int(request.args.get("width", 1000) or 1000),
-        height=int(request.args.get("height", 300) or 300),
-    )
+    return {
+        "text": request.args.get("text", "BANNER MANIA"),
+        "font_name": request.args.get("font", DEFAULT_FONT or "Default"),
+        "effect": request.args.get("effect", "shadow"),
+        "pattern": request.args.get("pattern", "solid"),
+        "border": request.args.get("border", "single"),
+        "fg": request.args.get("fg", "#ffd60a"),
+        "fg2": request.args.get("fg2", "#ff4747"),
+        "bg": request.args.get("bg", "#111122"),
+        "accent": request.args.get("accent", "#28284a"),
+        "width": int(request.args.get("width", 1000) or 1000),
+        "height": int(request.args.get("height", 300) or 300),
+    }
 
 
 @app.route("/")

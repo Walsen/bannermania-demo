@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+#
+# Pre-push quality gate.
+#
+# Runs on every `git push` and blocks it if any stage fails:
+#   1. Static code verification (ruff lint)
+#   2. Unit tests (pytest)
+#   3. Secrets scanning (detect-secrets, against tracked baseline)
+#   4. PII scanning (custom scan of lines added by the outgoing commits)
+#
+# Installed via `scripts/install-git-hooks.sh` (sets core.hooksPath to
+# .githooks/), so this file is versioned and shared across the team instead
+# of living only in the untracked .git/hooks/ directory.
+#
+# To bypass in a genuine emergency: git push --no-verify (avoid unless the
+# user explicitly asks for it — see project git safety rules).
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# Prefer `uv run` when available so tools resolve from the project's managed
+# venv without requiring the caller to have activated it manually.
+if command -v uv >/dev/null 2>&1; then
+  RUN="uv run"
+else
+  RUN=""
+fi
+
+remote="$1"
+url="$2"
+
+STATUS=0
+step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
+fail() { printf '\033[31m✗ %s\033[0m\n' "$1"; STATUS=1; }
+pass() { printf '\033[32m✓ %s\033[0m\n' "$1"; }
+
+# --- Determine the commit range being pushed --------------------------------
+# For each ref being pushed, git feeds "<local ref> <local sha1> <remote ref> <remote sha1>"
+# on stdin. We union all local..remote ranges to build the full new-commit set.
+EMPTY_TREE="$(git hash-object -t tree /dev/null)"
+
+range_args=()
+diff_ranges=() # always in "<base>..<tip>" form, suitable for `git diff a..b`
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "${local_sha:-}" ] && continue
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    continue # deleting a ref, nothing to scan
+  fi
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$remote_sha" 2>/dev/null; then
+    # New branch on the remote (or remote sha unknown locally): find the
+    # closest ancestor already known to any remote-tracking ref, falling
+    # back to the empty tree so we scan the whole branch's history.
+    base="$(git merge-base "$local_sha" $(git for-each-ref --format='%(objectname)' refs/remotes/ 2>/dev/null) 2>/dev/null | head -n1)"
+    base="${base:-$EMPTY_TREE}"
+    range_args+=("$local_sha")
+    diff_ranges+=("$base..$local_sha")
+  else
+    range_args+=("$remote_sha..$local_sha")
+    diff_ranges+=("$remote_sha..$local_sha")
+  fi
+done
+
+if [ ${#range_args[@]} -eq 0 ]; then
+  echo "pre-push: nothing new to push, skipping quality gate."
+  exit 0
+fi
+
+# Files touched by the push (used to scope lint checks to what's changing).
+changed_files=""
+for r in "${diff_ranges[@]}"; do
+  changed_files+="$(git diff --name-only --diff-filter=ACM "$r" -- 2>/dev/null)
+"
+done
+changed_files="$(echo "$changed_files" | sort -u | sed '/^$/d')"
+py_files="$(echo "$changed_files" | grep -E '\.py$' || true)"
+
+echo "Quality gate: scanning ${#range_args[@]} commit range(s) before pushing to $remote ($url)"
+
+# --- 1. Static code verification --------------------------------------------
+step "Static code verification (ruff)"
+if [ -n "$py_files" ]; then
+  if $RUN ruff check $py_files; then
+    pass "ruff: no issues in changed Python files"
+  else
+    fail "ruff: lint errors found (see above)"
+  fi
+else
+  echo "no changed Python files, skipping."
+fi
+
+# --- 2. Unit tests ------------------------------------------------------------
+step "Unit tests (pytest)"
+if [ -d tests ] || compgen -G "**/test_*.py" > /dev/null 2>&1; then
+  if $RUN pytest -q; then
+    pass "pytest: all tests passed"
+  else
+    fail "pytest: test failures found (see above)"
+  fi
+else
+  echo "no test suite found, skipping (add tests/ to enable this check)."
+fi
+
+# --- 3. Secrets scanning -------------------------------------------------------
+step "Secrets scanning (detect-secrets)"
+# Scan every file touched by the outgoing commits (not just .py files) since
+# secrets can land in configs, scripts, templates, etc. Excludes lock files
+# and the baseline itself, which detect-secrets already filters internally.
+scan_files="$(echo "$changed_files" | grep -vE '(^uv\.lock$|\.lock$|^\.secrets\.baseline$)' | grep -vE '\.(png|gif|jpg|jpeg|ico|woff2?|ttf|otf)$' || true)"
+if [ -f .secrets.baseline ] && [ -n "$scan_files" ]; then
+  # shellcheck disable=SC2086
+  if $RUN detect-secrets-hook --baseline .secrets.baseline $scan_files; then
+    pass "detect-secrets: no new secrets found"
+  else
+    fail "detect-secrets: potential secrets found that are not in .secrets.baseline"
+    echo "  Review the report above. If these are false positives, mark them"
+    echo "  inline with '# pragma: allowlist secret', or refresh the baseline:"
+    echo "    uv run detect-secrets scan --baseline .secrets.baseline > .secrets.baseline.new && mv .secrets.baseline.new .secrets.baseline"
+  fi
+elif [ ! -f .secrets.baseline ]; then
+  echo "no .secrets.baseline found, skipping (run scripts/install-git-hooks.sh to create one)."
+else
+  echo "no scannable files changed, skipping."
+fi
+
+# --- 4. PII scanning -----------------------------------------------------------
+step "PII scanning (added lines only)"
+if [ -f scripts/check_pii.py ]; then
+  pii_status=0
+  for r in "${diff_ranges[@]}"; do
+    $RUN python scripts/check_pii.py "$r" || pii_status=1
+  done
+  if [ "$pii_status" -eq 0 ]; then
+    pass "check_pii: no PII-looking content in added lines"
+  else
+    fail "check_pii: potential PII found in added lines (see above)"
+  fi
+else
+  echo "scripts/check_pii.py not found, skipping."
+fi
+
+# --- Summary -------------------------------------------------------------------
+echo
+if [ "$STATUS" -ne 0 ]; then
+  printf '\033[31mQuality gate FAILED. Push aborted.\033[0m\n'
+  printf 'Fix the issues above, or use "git push --no-verify" to bypass (not recommended).\n'
+else
+  printf '\033[32mQuality gate passed. Proceeding with push.\033[0m\n'
+fi
+
+exit "$STATUS"
