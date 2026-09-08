@@ -17,3 +17,5 @@ env/
 *.swp
 .idea/
 .vscode/
+
+.devbox/

@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Doc Sync on File Save",
+      "trigger": "PostFileSave",
+      "matcher": "^(?!.*(\\.kiro/|\\.git/|\\.venv/|\\.devbox/|node_modules/|__pycache__/)).*\\.(py|js|ts|jsx|tsx|html|css|json|toml|yaml|yml)$",
+      "action": {
+        "type": "agent",
+        "prompt": "A project resource file was just saved/changed. Use the doc-sync skill: review whether this change affects documented features, setup steps, API/parameters, or project structure, and update README.md, docs/, or inline docstrings accordingly with a minimal, targeted edit. Skip if the change has no user-visible or documentation-relevant effect."
+      }
+    }
+  ]
+}

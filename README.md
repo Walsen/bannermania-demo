@@ -198,6 +198,41 @@ curl -s http://127.0.0.1:5001/health | python -m json.tool
 > exposing it publicly, add input caps and rate limiting, since every request
 > does image work.
 
+### Dev dependencies, linting & tests
+
+Dev tooling is managed via `uv` (see `pyproject.toml`'s `[dependency-groups]`):
+[Ruff](https://docs.astral.sh/ruff/) for linting, [pytest](https://docs.pytest.org/)
+for unit tests, and [detect-secrets](https://github.com/Yelp/detect-secrets) for
+secrets scanning.
+
+```bash
+uv sync                 # install runtime + dev dependencies
+uv run ruff check .     # static analysis
+uv run pytest -q        # unit tests (tests/test_app.py)
+```
+
+### Git quality gate (pre-push)
+
+A `pre-push` hook (`.githooks/pre-push`) blocks pushes that fail any of:
+
+1. **Static code verification** — `ruff check` on changed Python files.
+2. **Unit tests** — the full `pytest` suite.
+3. **Secrets scanning** — `detect-secrets-hook` against the tracked
+   `.secrets.baseline`.
+4. **PII scanning** — `scripts/check_pii.py` scans only the *added* lines in
+   the outgoing commits for emails, phone numbers, SSNs, and credit-card-like
+   numbers.
+
+Install it once per clone:
+
+```bash
+./scripts/install-git-hooks.sh
+```
+
+False positives can be allowlisted inline: `# pragma: allowlist secret` for
+detect-secrets, `# allowlist pii` for the PII scanner. In a genuine emergency
+the gate can be bypassed with `git push --no-verify` (avoid unless necessary).
+
 ---
 
 ## Project layout
@@ -210,8 +245,16 @@ demo/
 ├── static/
 │   ├── style.css         # 80s CRT styling
 │   └── app.js            # live preview, animate toggle, randomizer, download
+├── tests/
+│   └── test_app.py       # pytest unit tests
+├── scripts/
+│   ├── check_pii.py      # PII scanner used by the pre-push quality gate
+│   └── install-git-hooks.sh
+├── .githooks/
+│   └── pre-push          # quality gate: lint, tests, secrets, PII
 ├── docs/                 # README demo assets
 ├── requirements.txt      # Flask + Pillow
+├── pyproject.toml        # project + dev dependency config (ruff, pytest, detect-secrets)
 ├── LICENSE               # Apache 2.0
 └── README.md
 ```
