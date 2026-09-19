@@ -19,3 +19,10 @@ env/
 .vscode/
 
 .devbox/
+
+# PyInstaller build output (desktop-app packaging)
+build/
+dist/
+
+# Local, non-committed secrets/config
+.env.local
