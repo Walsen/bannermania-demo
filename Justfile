@@ -28,7 +28,7 @@ fmt:
 
 # Scan for committed secrets against the tracked baseline.
 secrets:
-    uv run detect-secrets scan --baseline .secrets.baseline
+    uv run detect-secrets scan --baseline .secrets.baseline  # pragma: allowlist secret
 
 # Run the project's PII check.
 pii:
